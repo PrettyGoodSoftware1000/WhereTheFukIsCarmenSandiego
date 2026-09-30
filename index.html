@@ -292,7 +292,7 @@
     // The picture each section is shown over.
     const SCENES = {
       1: { video: 'Video1.mp4', frame: 'first' },
-      2: { video: 'Video2.mp4', frame: 'last' },
+      2: { video: 'Video1.mp4', frame: 'last' },
     };
 
     // Live buttons, from button-layout.txt. x, y, w, h are fractions (0–1)
@@ -309,7 +309,7 @@
                x: 0.0361, y: 0.0113, w: 0.2833, h: 0.7812 },
         },
       },
-      // 2: Section 2 buttons go here (shown over Video2.mp4's last frame).
+      // 2: Section 2 buttons go here (shown over Video1.mp4's last frame).
     };
 
     // What each live button does: ACTIONS[section][button]().
@@ -430,15 +430,12 @@
       renderLive();
     }
 
-    // Disk: play Video2.mp4 and freeze on its last frame, then Section 2.
+    // Disk: play Video1.mp4 and freeze on its last frame, then Section 2.
     function playDiskVideo() {
       setSection(null); // Section 1 buttons stop working
       stopSound();
-      vid1.pause();
-      vid1.classList.add('is-hidden');
-      vid2.classList.remove('is-hidden');
-      try { vid2.currentTime = 0; } catch (_) {}
-      vid2.play().catch((err) => {
+      showScene(1);
+      vid1.play().catch((err) => {
         console.warn('Video play() was blocked:', err);
         showScene(1);
         setSection(1);
@@ -446,7 +443,7 @@
     }
 
     // A finished video stays on its last frame.
-    vid2.addEventListener('ended', () => {
+    vid1.addEventListener('ended', () => {
       if (currentSection === null && !devMode) setSection(2);
     });
 
@@ -707,7 +704,7 @@
       document.body.classList.add('dev');
       panel.hidden = false;
       badge.hidden = false;
-      // Start on the section you're in (Section 2 if Video2 is mid-play).
+      // Start on the section you're in (Section 2 if Video1 is mid-play).
       switchDevSection(String(currentSection || 2));
     }
 
@@ -721,7 +718,7 @@
       panel.hidden = true;
       badge.hidden = true;
       saveHotspots();
-      // Go back to the live scene. If dev mode interrupted Video2, finish it.
+      // Go back to the live scene. If dev mode interrupted Video1, finish it.
       if (currentSection === null) currentSection = 2;
       showScene(currentSection);
       renderLive();
@@ -863,8 +860,9 @@
 
   <!--
     Files expected next to this index.html in the repo:
-      • Video1.mp4          (Section 1 / LaunchScreen: its first frame)
-      • Video2.mp4          (plays after Disk; Section 2 is its last frame)
+      • Video1.mp4          (Section 1 / LaunchScreen is its first frame; Disk
+                             plays it, and Section 2 is its last frame)
+      • Video2.mp4          (not used yet)
       • Batman01.mp3, Batman02.mp3, …   (Videotape, one per click)
       • Vampire01.mp3, Vampire02.mp3, … (Vampire poster, one per click)
       • button-layout.txt   (exported from dev mode)

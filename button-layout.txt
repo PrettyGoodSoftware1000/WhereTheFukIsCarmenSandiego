@@ -1,5 +1,5 @@
 INVISIBLE BUTTON LAYOUT
-Exported: 2026-09-30T20:24:39.131Z
+Exported: 2026-09-30T20:42:11.878Z
 Page: index.html
 Video frame size: 1280x720 px
 Coordinates: origin is the top-left corner of the video frame.
@@ -29,7 +29,7 @@ Button 3: "Interview with the vampire poster"
 
 ==================================================
 Section 2: (unnamed)
-  scene: Video2.mp4 (last frame)
+  scene: Video1.mp4 (last frame)
 --------------------------------------------------
   (no buttons yet)
 
@@ -124,7 +124,7 @@ JSON (x, y, width, height are fractions 0-1 of the video frame):
       "section": 2,
       "name": "",
       "scene": {
-        "video": "Video2.mp4",
+        "video": "Video1.mp4",
         "frame": "last"
       },
       "buttons": []
