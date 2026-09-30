@@ -43,50 +43,129 @@
       visibility: hidden;
     }
 
-    /* Thumbs-down button: centered over the video. */
-    .down-btn {
+    /* ---------- Invisible buttons (hotspots) ---------- */
+
+    /* Layer that holds the hotspot squares, on top of the videos. */
+    .hotspot-layer {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      appearance: none;
-      background: rgba(22, 22, 22, 0.7);
-      -webkit-backdrop-filter: blur(6px);
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      color: #f5f5f5;
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 16px;
-      line-height: 1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 120ms ease,
-                  background 160ms ease,
-                  border-color 160ms ease,
-                  opacity 250ms ease;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
+      inset: 0;
+      pointer-events: none;
     }
-    .down-btn:hover:not(:disabled) {
-      background: rgba(40, 40, 40, 0.85);
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-    .down-btn:active:not(:disabled) {
-      transform: translate(-50%, -50%) scale(0.9);
-    }
-    /* Hide the button (with a smooth fade) once it has been pressed */
-    .down-btn.is-hidden {
+    body.dev .hotspot-layer { pointer-events: auto; }
+    body.dev.drawing .hotspot-layer { cursor: crosshair; }
+
+    /* Outside dev mode the squares are invisible and inactive. */
+    .hotspot {
+      position: absolute;
       opacity: 0;
       pointer-events: none;
     }
-    .down-btn:focus-visible {
-      outline: 2px solid #888;
-      outline-offset: 4px;
+    body.dev .hotspot {
+      opacity: 1;
+      pointer-events: auto;
+      border: 2px solid #ffd400;
+      background: rgba(255, 212, 0, 0.14);
     }
+    body.dev.drawing .hotspot { pointer-events: none; }
+    body.dev .hotspot.is-main {
+      border-color: #3ddc84;
+      background: rgba(61, 220, 132, 0.14);
+    }
+
+    .hotspot-num {
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      min-width: 20px;
+      padding: 2px 6px;
+      background: #ffd400;
+      color: #000;
+      font: 700 12px/16px ui-sans-serif, system-ui, sans-serif;
+      text-align: center;
+    }
+    .hotspot.is-main .hotspot-num { background: #3ddc84; }
+
+    .hotspot-del {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 0;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font: 700 14px/20px ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .hotspot-name {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100% - 12px);
+      max-width: 100%;
+      padding: 2px 4px;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      font: 600 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+      text-align: center;
+      text-shadow: 0 1px 3px #000, 0 0 2px #000;
+    }
+    .hotspot-name::placeholder { color: rgba(255, 255, 255, 0.7); }
+    .hotspot-name:focus { background: rgba(0, 0, 0, 0.45); }
+
+    /* ---------- Dev mode menu ---------- */
+
+    .dev-panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 260px;
+      padding: 12px 14px;
+      background: rgba(12, 12, 12, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.45;
+      z-index: 10;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+    .dev-panel[hidden] { display: none; }
+    .dev-panel h2 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      color: #ffd400;
+    }
+    .dev-panel p { margin: 0 0 6px; }
+    .dev-panel kbd {
+      display: inline-block;
+      min-width: 18px;
+      padding: 0 4px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 3px;
+      font: 12px/16px ui-monospace, monospace;
+      text-align: center;
+    }
+    .dev-status {
+      margin: 8px 0;
+      padding: 6px 8px;
+      background: rgba(255, 212, 0, 0.12);
+      border-radius: 4px;
+      color: #ffd400;
+    }
+    .dev-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 180px;
+      overflow: auto;
+    }
+    .dev-list li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dev-panel.is-collapsed .dev-body { display: none; }
   </style>
 </head>
 <body>
@@ -111,57 +190,341 @@
       controlslist="nodownload noplaybackrate nofullscreen noremoteplayback"
     ></video>
 
-    <button class="down-btn" id="downBtn" aria-label="Thumbs down" title="Thumbs down">
-      👎
-    </button>
+    <div class="hotspot-layer" id="hotspotLayer"></div>
+
+    <div class="dev-panel" id="devPanel" hidden>
+      <h2>Dev mode</h2>
+      <div class="dev-body">
+        <p><kbd>1</kbd> draw Button 1 (the main button)</p>
+        <p><kbd>2</kbd>–<kbd>9</kbd> draw other buttons</p>
+        <p>Drag to draw a square, type its name, press <kbd>Enter</kbd>.
+           Drawing a number again replaces it. <kbd>×</kbd> deletes.</p>
+        <p><kbd>Esc</kbd> cancel drawing · <kbd>H</kbd> hide this menu</p>
+        <p><kbd>⌘</kbd>+<kbd>`</kbd> close, hide squares, download .txt</p>
+        <div class="dev-status" id="devStatus"></div>
+        <ul class="dev-list" id="devList"></ul>
+      </div>
+    </div>
   </div>
 
   <script>
-    const stage = document.getElementById('stage');
     const vid1 = document.getElementById('vid1');
     const vid2 = document.getElementById('vid2');
-    const btn = document.getElementById('downBtn');
-
-    function hideButton() {
-      btn.classList.add('is-hidden');
-      btn.disabled = true;
-    }
-    function showButton() {
-      btn.classList.remove('is-hidden');
-      btn.disabled = false;
-    }
-
-    // ----- Click: go fullscreen and play video 1 all the way through -----
-    btn.addEventListener('click', () => {
-      hideButton();
-
-      // Fullscreen must be requested during the click itself; browsers
-      // refuse it later. If it isn't supported (e.g. iPhone), the page
-      // already fills the window.
-      const requestFs = stage.requestFullscreen || stage.webkitRequestFullscreen;
-      if (requestFs) {
-        try {
-          const p = requestFs.call(stage);
-          if (p && p.catch) p.catch(() => {});
-        } catch (_) {}
-      }
-
-      vid1.play().catch(err => {
-        console.warn('Video play() was blocked:', err);
-        showButton();
-      });
-    });
 
     // ----- Video 1 finished: show video 2's first frame and stay there -----
+    // (Nothing starts video 1 yet; the invisible buttons will do that later.)
     vid1.addEventListener('ended', () => {
       vid2.classList.remove('is-hidden');
       vid1.classList.add('is-hidden');
     });
+
+    // =====================================================================
+    // Dev mode: draw invisible buttons over the video and export them.
+    //   ⌘ + `  (or Ctrl + `)  open / close dev mode
+    //   1–9                   draw that button
+    // Positions are stored as fractions (0–1) of the video frame, so they
+    // line up no matter how big the window is.
+    // =====================================================================
+    const layer = document.getElementById('hotspotLayer');
+    const panel = document.getElementById('devPanel');
+    const statusEl = document.getElementById('devStatus');
+    const listEl = document.getElementById('devList');
+
+    const STORE_KEY = 'invisible-buttons-v1';
+    const MIN_SIZE = 6; // px; smaller drags are ignored as accidental clicks
+
+    let hotspots = loadHotspots(); // { "1": { x, y, w, h, name, video }, ... }
+    const elements = {};            // number -> square element
+    let devMode = false;
+    let drawNum = null;             // button number waiting to be drawn
+    let drag = null;                // in-progress drag
+
+    function loadHotspots() {
+      try {
+        return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+      } catch (_) {
+        return {};
+      }
+    }
+    function saveHotspots() {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(hotspots)); } catch (_) {}
+    }
+
+    function visibleVideo() {
+      return vid2.classList.contains('is-hidden') ? vid1 : vid2;
+    }
+    function videoFileName(v) {
+      return v.getAttribute('src').split('#')[0];
+    }
+
+    // Where the video picture actually sits inside the stage (object-fit: contain
+    // adds black bars when the window isn't 16:9).
+    function frameRect() {
+      const v = visibleVideo();
+      const vw = v.videoWidth || 1280;
+      const vh = v.videoHeight || 720;
+      const box = layer.getBoundingClientRect();
+      const scale = Math.min(box.width / vw, box.height / vh);
+      const width = vw * scale;
+      const height = vh * scale;
+      return {
+        left: (box.width - width) / 2,
+        top: (box.height - height) / 2,
+        width, height, vw, vh,
+        boxLeft: box.left, boxTop: box.top,
+      };
+    }
+
+    // Pointer position -> fraction of the video frame, clamped to the frame.
+    function toFrame(e, f) {
+      const x = (e.clientX - f.boxLeft - f.left) / f.width;
+      const y = (e.clientY - f.boxTop - f.top) / f.height;
+      return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+    }
+
+    function placeElement(el, r, f) {
+      el.style.left = (f.left + r.x * f.width) + 'px';
+      el.style.top = (f.top + r.y * f.height) + 'px';
+      el.style.width = (r.w * f.width) + 'px';
+      el.style.height = (r.h * f.height) + 'px';
+    }
+
+    function makeElement(num) {
+      const el = document.createElement('div');
+      el.className = 'hotspot' + (num === '1' ? ' is-main' : '');
+      el.dataset.num = num;
+
+      const badge = document.createElement('span');
+      badge.className = 'hotspot-num';
+      badge.textContent = num;
+
+      const del = document.createElement('button');
+      del.className = 'hotspot-del';
+      del.type = 'button';
+      del.title = 'Delete button ' + num;
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        delete hotspots[num];
+        el.remove();
+        delete elements[num];
+        saveHotspots();
+        updatePanel();
+      });
+
+      const input = document.createElement('input');
+      input.className = 'hotspot-name';
+      input.type = 'text';
+      input.placeholder = num === '1' ? 'Button 1 name' : 'Button ' + num + ' name';
+      input.addEventListener('input', () => {
+        if (hotspots[num]) {
+          hotspots[num].name = input.value;
+          saveHotspots();
+          updatePanel();
+        }
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          e.preventDefault();
+          input.blur();
+        }
+      });
+
+      el.append(badge, del, input);
+      layer.appendChild(el);
+      elements[num] = el;
+      return el;
+    }
+
+    function renderAll() {
+      const f = frameRect();
+      for (const num of Object.keys(hotspots)) {
+        const el = elements[num] || makeElement(num);
+        el.querySelector('.hotspot-name').value = hotspots[num].name || '';
+        placeElement(el, hotspots[num], f);
+      }
+    }
+
+    function updatePanel() {
+      statusEl.textContent = drawNum
+        ? 'Drawing Button ' + drawNum + ': drag on the video.'
+        : 'Press 1–9 to draw a button.';
+      listEl.innerHTML = '';
+      const nums = Object.keys(hotspots).sort();
+      if (!nums.length) {
+        const li = document.createElement('li');
+        li.textContent = 'No buttons yet.';
+        listEl.appendChild(li);
+      }
+      for (const num of nums) {
+        const li = document.createElement('li');
+        li.textContent = 'Button ' + num + ': ' + (hotspots[num].name || '(no name)');
+        listEl.appendChild(li);
+      }
+    }
+
+    function startDrawing(num) {
+      drawNum = num;
+      document.body.classList.add('drawing');
+      updatePanel();
+    }
+    function stopDrawing() {
+      drawNum = null;
+      drag = null;
+      document.body.classList.remove('drawing');
+      updatePanel();
+    }
+
+    layer.addEventListener('pointerdown', (e) => {
+      if (!devMode || !drawNum) return;
+      e.preventDefault();
+      const f = frameRect();
+      const start = toFrame(e, f);
+      const el = elements[drawNum] || makeElement(drawNum);
+      drag = { num: drawNum, start, f, el, prev: hotspots[drawNum] };
+      placeElement(el, { x: start.x, y: start.y, w: 0, h: 0 }, f);
+      layer.setPointerCapture(e.pointerId);
+    });
+
+    layer.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const p = toFrame(e, drag.f);
+      const s = drag.start;
+      drag.rect = {
+        x: Math.min(s.x, p.x), y: Math.min(s.y, p.y),
+        w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y),
+      };
+      placeElement(drag.el, drag.rect, drag.f);
+    });
+
+    layer.addEventListener('pointerup', () => {
+      if (!drag) return;
+      const { num, rect, f, el, prev } = drag;
+      const tooSmall = !rect || rect.w * f.width < MIN_SIZE || rect.h * f.height < MIN_SIZE;
+      if (tooSmall) {
+        // Put things back the way they were.
+        if (prev) placeElement(el, prev, f);
+        else { el.remove(); delete elements[num]; }
+        drag = null;
+        return;
+      }
+      hotspots[num] = {
+        ...rect,
+        name: prev ? prev.name : '',
+        video: videoFileName(visibleVideo()),
+      };
+      saveHotspots();
+      stopDrawing();
+      const input = el.querySelector('.hotspot-name');
+      input.value = hotspots[num].name;
+      input.focus();
+      input.select();
+    });
+
+    function openDevMode() {
+      devMode = true;
+      document.body.classList.add('dev');
+      panel.hidden = false;
+      renderAll();
+      updatePanel();
+    }
+
+    function closeDevMode() {
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      stopDrawing();
+      devMode = false;
+      document.body.classList.remove('dev');
+      panel.hidden = true;
+      saveHotspots();
+      if (Object.keys(hotspots).length) downloadLayout();
+    }
+
+    function pct(n) { return (n * 100).toFixed(2) + '%'; }
+
+    function buildLayoutText() {
+      const f = frameRect();
+      const nums = Object.keys(hotspots).sort();
+      const lines = [
+        'INVISIBLE BUTTON LAYOUT',
+        'Exported: ' + new Date().toISOString(),
+        'Page: index.html',
+        'Video frame size: ' + f.vw + 'x' + f.vh + ' px',
+        'Coordinates: origin is the top-left corner of the video frame.',
+        '  "px" values are in video pixels; "%" values are fractions of the frame',
+        '  (use the % values to position buttons at any window size).',
+        '',
+      ];
+      for (const num of nums) {
+        const h = hotspots[num];
+        lines.push(
+          'Button ' + num + (num === '1' ? ' (main button)' : '') + ': "' + (h.name || '') + '"',
+          '  shown over: ' + h.video,
+          '  px: x=' + Math.round(h.x * f.vw) + ' y=' + Math.round(h.y * f.vh) +
+            ' width=' + Math.round(h.w * f.vw) + ' height=' + Math.round(h.h * f.vh),
+          '  %:  left=' + pct(h.x) + ' top=' + pct(h.y) +
+            ' width=' + pct(h.w) + ' height=' + pct(h.h),
+          ''
+        );
+      }
+      const data = nums.map((num) => {
+        const h = hotspots[num];
+        const r = (n) => Math.round(n * 10000) / 10000;
+        return {
+          button: Number(num), name: h.name || '', video: h.video,
+          x: r(h.x), y: r(h.y), width: r(h.w), height: r(h.h),
+        };
+      });
+      lines.push(
+        'JSON (x, y, width, height are fractions 0-1 of the video frame):',
+        JSON.stringify({ frame: { width: f.vw, height: f.vh }, buttons: data }, null, 2),
+        ''
+      );
+      return lines.join('\n');
+    }
+
+    function downloadLayout() {
+      const blob = new Blob([buildLayoutText()], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'button-layout.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      // ⌘ + ` toggles dev mode. Ctrl + ` also works, in case macOS
+      // keeps ⌘ + ` for switching windows.
+      if ((e.metaKey || e.ctrlKey) && e.code === 'Backquote') {
+        e.preventDefault();
+        if (devMode) closeDevMode(); else openDevMode();
+        return;
+      }
+      if (!devMode) return;
+      if (e.target instanceof HTMLInputElement) return; // typing a name
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (/^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        startDrawing(e.key);
+      } else if (e.key === 'Escape') {
+        stopDrawing();
+      } else if (e.key === 'h' || e.key === 'H') {
+        panel.classList.toggle('is-collapsed');
+      }
+    });
+
+    window.addEventListener('resize', renderAll);
+    vid1.addEventListener('loadedmetadata', renderAll);
+    renderAll();
   </script>
 
   <!--
     Files expected next to this index.html in the repo:
-      • video1.mp4   (shown on load, plays when the button is pressed)
+      • video1.mp4   (shown on load)
       • Video2.mp4   (its first frame is shown after video1 ends)
     File names are case-sensitive on GitHub Pages.
     GitHub Pages: Settings → Pages → Source: main / root.
