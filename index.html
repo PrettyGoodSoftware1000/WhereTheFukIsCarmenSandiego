@@ -166,6 +166,20 @@
     }
     .dev-list li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dev-panel.is-collapsed .dev-body { display: none; }
+
+    /* "dev mode" label in the top-right corner while dev mode is on. */
+    .dev-badge {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      color: #3ddc84;
+      font: 700 16px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.04em;
+      text-shadow: 0 1px 3px #000;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .dev-badge[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -173,7 +187,7 @@
     <!-- `#t=0.001` makes Safari/iOS paint the first frame before playback. -->
     <video
       id="vid1"
-      src="video1.mp4#t=0.001"
+      src="Video1.mp4#t=0.001"
       preload="auto"
       playsinline
       disablepictureinpicture
@@ -200,11 +214,13 @@
         <p>Drag to draw a square, type its name, press <kbd>Enter</kbd>.
            Drawing a number again replaces it. <kbd>×</kbd> deletes.</p>
         <p><kbd>Esc</kbd> cancel drawing · <kbd>H</kbd> hide this menu</p>
-        <p><kbd>⌘</kbd>+<kbd>`</kbd> close, hide squares, download .txt</p>
+        <p>Hold <kbd>Enter</kbd> 2 s: close, hide squares, download .txt</p>
         <div class="dev-status" id="devStatus"></div>
         <ul class="dev-list" id="devList"></ul>
       </div>
     </div>
+
+    <div class="dev-badge" id="devBadge" hidden>dev mode</div>
   </div>
 
   <script>
@@ -220,8 +236,8 @@
 
     // =====================================================================
     // Dev mode: draw invisible buttons over the video and export them.
-    //   ⌘ + `  (or Ctrl + `)  open / close dev mode
-    //   1–9                   draw that button
+    //   hold Enter for 2 seconds   open / close dev mode
+    //   1–9                        draw that button
     // Positions are stored as fractions (0–1) of the video frame, so they
     // line up no matter how big the window is.
     // =====================================================================
@@ -229,9 +245,11 @@
     const panel = document.getElementById('devPanel');
     const statusEl = document.getElementById('devStatus');
     const listEl = document.getElementById('devList');
+    const badge = document.getElementById('devBadge');
 
     const STORE_KEY = 'invisible-buttons-v1';
     const MIN_SIZE = 6; // px; smaller drags are ignored as accidental clicks
+    const HOLD_MS = 2000; // how long Enter must be held to toggle dev mode
 
     let hotspots = loadHotspots(); // { "1": { x, y, w, h, name, video }, ... }
     const elements = {};            // number -> square element
@@ -240,11 +258,17 @@
     let drag = null;                // in-progress drag
 
     function loadHotspots() {
+      let data;
       try {
-        return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+        data = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
       } catch (_) {
-        return {};
+        data = {};
       }
+      // Buttons saved before the rename still point at "video1.mp4".
+      for (const num of Object.keys(data)) {
+        if (data[num].video === 'video1.mp4') data[num].video = 'Video1.mp4';
+      }
+      return data;
     }
     function saveHotspots() {
       try { localStorage.setItem(STORE_KEY, JSON.stringify(hotspots)); } catch (_) {}
@@ -396,6 +420,15 @@
       placeElement(drag.el, drag.rect, drag.f);
     });
 
+    // Pointer lost mid-drag (e.g. a system gesture): undo that drag.
+    layer.addEventListener('pointercancel', () => {
+      if (!drag) return;
+      const { num, f, el, prev } = drag;
+      if (prev) placeElement(el, prev, f);
+      else { el.remove(); delete elements[num]; }
+      drag = null;
+    });
+
     layer.addEventListener('pointerup', () => {
       if (!drag) return;
       const { num, rect, f, el, prev } = drag;
@@ -424,6 +457,7 @@
       devMode = true;
       document.body.classList.add('dev');
       panel.hidden = false;
+      badge.hidden = false;
       renderAll();
       updatePanel();
     }
@@ -436,6 +470,7 @@
       devMode = false;
       document.body.classList.remove('dev');
       panel.hidden = true;
+      badge.hidden = true;
       saveHotspots();
       if (Object.keys(hotspots).length) downloadLayout();
     }
@@ -495,12 +530,27 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    // ----- Holding Enter for 2 seconds toggles dev mode -----
+    let holdTimer = null;
+
+    function cancelHold() {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+
     window.addEventListener('keydown', (e) => {
-      // ⌘ + ` toggles dev mode. Ctrl + ` also works, in case macOS
-      // keeps ⌘ + ` for switching windows.
-      if ((e.metaKey || e.ctrlKey) && e.code === 'Backquote') {
+      if (e.key === 'Enter') {
+        // Enter inside a name box just finishes typing (handled on the box).
+        if (e.target instanceof HTMLInputElement) return;
+        // Don't let Enter "click" a focused button (e.g. a × delete button).
         e.preventDefault();
-        if (devMode) closeDevMode(); else openDevMode();
+        // Held keys repeat keydown; only the first press starts the timer.
+        if (!e.repeat && !holdTimer) {
+          holdTimer = setTimeout(() => {
+            holdTimer = null;
+            if (devMode) closeDevMode(); else openDevMode();
+          }, HOLD_MS);
+        }
         return;
       }
       if (!devMode) return;
@@ -517,15 +567,23 @@
       }
     });
 
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') cancelHold();
+    });
+    // Switching apps/tabs mid-hold means we may never see the keyup.
+    window.addEventListener('blur', cancelHold);
+
     window.addEventListener('resize', renderAll);
     vid1.addEventListener('loadedmetadata', renderAll);
+    vid2.addEventListener('loadedmetadata', renderAll);
+    vid1.addEventListener('ended', renderAll);
     renderAll();
   </script>
 
   <!--
     Files expected next to this index.html in the repo:
-      • video1.mp4   (shown on load)
-      • Video2.mp4   (its first frame is shown after video1 ends)
+      • Video1.mp4   (shown on load)
+      • Video2.mp4   (its first frame is shown after Video1 ends)
     File names are case-sensitive on GitHub Pages.
     GitHub Pages: Settings → Pages → Source: main / root.
   -->
