@@ -293,6 +293,7 @@
     const SCENES = {
       1: { video: 'Video1.mp4', frame: 'first' },
       2: { video: 'Video1.mp4', frame: 'last' },
+      3: { video: 'Video2.mp4', frame: 'last' },
     };
 
     // Live buttons, from button-layout.txt. x, y, w, h are fractions (0–1)
@@ -309,15 +310,31 @@
                x: 0.0361, y: 0.0113, w: 0.2833, h: 0.7812 },
         },
       },
-      // 2: Section 2 buttons go here (shown over Video1.mp4's last frame).
+      2: {
+        name: 'DiskUp',
+        buttons: {
+          1: { name: 'Insert Disk', video: 'Video1.mp4',
+               x: 0.3557, y: 0.2553, w: 0.3179, h: 0.5414 },
+          2: { name: 'VideotapeSec2', video: 'Video1.mp4',
+               x: 0.747, y: 0.7627, w: 0.1949, h: 0.2133 },
+          3: { name: 'Interview with the vampire poster sec 2', video: 'Video1.mp4',
+               x: 0.0457, y: 0.0102, w: 0.2716, h: 0.7955 },
+        },
+      },
+      // 3: Section 3 buttons go here (shown over Video2.mp4's last frame).
     };
 
     // What each live button does: ACTIONS[section][button]().
     const ACTIONS = {
       1: {
-        1: playDiskVideo,               // Disk
-        2: () => batmanSounds.play(),   // Videotape
-        3: () => vampireSounds.play(),  // Interview with the vampire poster
+        1: () => playVideo('Video1.mp4', 1, 2), // Disk
+        2: () => batmanSounds.play(),           // Videotape
+        3: () => vampireSounds.play(),          // Interview with the vampire poster
+      },
+      2: {
+        1: () => playVideo('Video2.mp4', 2, 3), // Insert Disk
+        2: () => batmanSounds.play(),           // VideotapeSec2
+        3: () => vampireSounds.play(),          // Interview with the vampire poster sec 2
       },
     };
 
@@ -430,22 +447,38 @@
       renderLive();
     }
 
-    // Disk: play Video1.mp4 and freeze on its last frame, then Section 2.
-    function playDiskVideo() {
-      setSection(null); // Section 1 buttons stop working
+    // Play a video from the start and freeze on its last frame, then switch
+    // to the next section. The current section's buttons stop working while
+    // it plays.
+    let pendingSection = null; // section to switch to when the video ends
+    function playVideo(file, fromSection, toSection) {
+      setSection(null);
+      pendingSection = toSection;
       stopSound();
-      showScene(1);
-      vid1.play().catch((err) => {
+      const v = VIDEOS[file];
+      for (const other of Object.values(VIDEOS)) {
+        other.pause();
+        if (other !== v) other.classList.add('is-hidden');
+      }
+      v.classList.remove('is-hidden');
+      try { v.currentTime = 0; } catch (_) {}
+      v.play().catch((err) => {
         console.warn('Video play() was blocked:', err);
-        showScene(1);
-        setSection(1);
+        pendingSection = null;
+        showScene(fromSection);
+        setSection(fromSection);
       });
     }
 
     // A finished video stays on its last frame.
-    vid1.addEventListener('ended', () => {
-      if (currentSection === null && !devMode) setSection(2);
-    });
+    for (const v of Object.values(VIDEOS)) {
+      v.addEventListener('ended', () => {
+        if (currentSection === null && pendingSection && !devMode) {
+          setSection(pendingSection);
+          pendingSection = null;
+        }
+      });
+    }
 
     // =====================================================================
     // Dev mode: draw invisible buttons over the video and export them.
@@ -704,8 +737,8 @@
       document.body.classList.add('dev');
       panel.hidden = false;
       badge.hidden = false;
-      // Start on the section you're in (Section 2 if Video1 is mid-play).
-      switchDevSection(String(currentSection || 2));
+      // Start on the section you're in (or heading to, if a video is mid-play).
+      switchDevSection(String(currentSection || pendingSection || 1));
     }
 
     function closeDevMode() {
@@ -718,8 +751,11 @@
       panel.hidden = true;
       badge.hidden = true;
       saveHotspots();
-      // Go back to the live scene. If dev mode interrupted Video1, finish it.
-      if (currentSection === null) currentSection = 2;
+      // Go back to the live scene. If dev mode interrupted a video, finish it.
+      if (currentSection === null) {
+        currentSection = pendingSection || 1;
+        pendingSection = null;
+      }
       showScene(currentSection);
       renderLive();
       downloadLayout();
@@ -862,7 +898,7 @@
     Files expected next to this index.html in the repo:
       • Video1.mp4          (Section 1 / LaunchScreen is its first frame; Disk
                              plays it, and Section 2 is its last frame)
-      • Video2.mp4          (not used yet)
+      • Video2.mp4          (Insert Disk plays it; Section 3 is its last frame)
       • Batman01.mp3, Batman02.mp3, …   (Videotape, one per click)
       • Vampire01.mp3, Vampire02.mp3, … (Vampire poster, one per click)
       • button-layout.txt   (exported from dev mode)

@@ -1,5 +1,5 @@
 INVISIBLE BUTTON LAYOUT
-Exported: 2026-09-30T20:56:36.501Z
+Exported: 2026-09-30T21:21:02.110Z
 Page: index.html
 Video frame size: 1280x720 px
 Coordinates: origin is the top-left corner of the video frame.
@@ -39,19 +39,17 @@ Button 1 (main button): "Insert Disk"
 
 Button 2: "VideotapeSec2"
   shown over: Video1.mp4
-  px: x=956 y=549 width=250 height=154
+  px: x=956 y=549 width=249 height=154
   %:  left=74.70% top=76.27% width=19.49% height=21.33%
 
 Button 3: "Interview with the vampire poster sec 2"
   shown over: Video1.mp4
-  px: x=59 y=7 width=348 height=573
+  px: x=58 y=7 width=348 height=573
   %:  left=4.57% top=1.02% width=27.16% height=79.55%
-
-
 
 ==================================================
 Section 3: (unnamed)
-  scene: (not set yet)
+  scene: Video2.mp4 (last frame)
 --------------------------------------------------
   (no buttons yet)
 
@@ -155,28 +153,31 @@ JSON (x, y, width, height are fractions 0-1 of the video frame):
         },
         {
           "button": 2,
-          "name": "InterviewPosterSec2",
-          "video": "Video1.mp4",
-          "x": 0.0457,
-          "y": 0.0102,
-          "width": 0.2716,
-          "height": 0.7955
-        },
-        {
-          "button": 3,
-          "name": "BatmanSec2",
+          "name": "VideotapeSec2",
           "video": "Video1.mp4",
           "x": 0.747,
           "y": 0.7627,
           "width": 0.1949,
           "height": 0.2133
+        },
+        {
+          "button": 3,
+          "name": "Interview with the vampire poster sec 2",
+          "video": "Video1.mp4",
+          "x": 0.0457,
+          "y": 0.0102,
+          "width": 0.2716,
+          "height": 0.7955
         }
       ]
     },
     {
       "section": 3,
       "name": "",
-      "scene": null,
+      "scene": {
+        "video": "Video2.mp4",
+        "frame": "last"
+      },
       "buttons": []
     },
     {
