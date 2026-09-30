@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: #0a0a0a;
+      color: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .stage {
+      width: min(92vw, 1280px);
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6),
+                  0 0 0 1px rgba(255, 255, 255, 0.04);
+      position: relative;
+    }
+
+    /* The video element. No `controls` attribute -> no player UI is visible. */
+    #vid {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* Thumbs-down button: centered over the video, 40% of the previous size. */
+    .down-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      appearance: none;
+      background: rgba(22, 22, 22, 0.7);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #f5f5f5;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 120ms ease,
+                  background 160ms ease,
+                  border-color 160ms ease,
+                  opacity 250ms ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .down-btn:hover:not(:disabled) {
+      background: rgba(40, 40, 40, 0.85);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .down-btn:active:not(:disabled) {
+      transform: translate(-50%, -50%) scale(0.9);
+    }
+    /* Hide the button (with a smooth fade) while the sound + video are running */
+    .down-btn.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .down-btn:focus-visible {
+      outline: 2px solid #888;
+      outline-offset: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <video
+      id="vid"
+      src="video.mp4"
+      preload="auto"
+      playsinline
+      disablepictureinpicture
+      controlslist="nodownload noplaybackrate nofullscreen noremoteplayback"
+    ></video>
+
+    <button class="down-btn" id="downBtn" aria-label="Thumbs down" title="Thumbs down">
+      👎
+    </button>
+  </div>
+
+  <script>
+    const vid = document.getElementById('vid');
+    const btn = document.getElementById('downBtn');
+
+    // Sound effect: seinfeld.mp3 sitting next to index.html in the repo root.
+    const sfx = new Audio('seinfeld.mp3');
+    sfx.preload = 'auto';
+
+    // ----- Make sure we are parked on the FIRST FRAME -----
+    function showFirstFrame() {
+      try { vid.currentTime = 0; } catch (_) {}
+    }
+    vid.addEventListener('loadedmetadata', showFirstFrame);
+    vid.addEventListener('loadeddata', showFirstFrame);
+
+    function hideButton() {
+      btn.classList.add('is-hidden');
+      btn.disabled = true;
+    }
+    function showButton() {
+      btn.classList.remove('is-hidden');
+      btn.disabled = false;
+    }
+
+    // ----- Click handler: sfx -> video -----
+    btn.addEventListener('click', () => {
+      hideButton();
+
+      // Reset the sound to the start in case it was played already.
+      try { sfx.currentTime = 0; } catch (_) {}
+
+      const onSfxEnded = () => {
+        sfx.removeEventListener('ended', onSfxEnded);
+        // Sound is done -> start the video the instant it finishes.
+        vid.play().catch(err => {
+          console.warn('Video play() was blocked:', err);
+          showButton();
+        });
+      };
+      sfx.addEventListener('ended', onSfxEnded);
+
+      sfx.play().catch(err => {
+        console.warn('Audio play() was blocked:', err);
+        sfx.removeEventListener('ended', onSfxEnded);
+        showButton();
+      });
+    });
+
+    // ----- After the video ends, idle for 3 seconds, then reset to frame 1 -----
+    vid.addEventListener('ended', () => {
+      setTimeout(() => {
+        vid.pause();
+        vid.currentTime = 0;
+        showButton();
+      }, 3000);
+    });
+  </script>
+
+  <!--
+    Files expected next to this index.html in the repo:
+      • video.mp4       (your 1280×720 video)
+      • seinfeld.mp3    (the sound effect)
+    GitHub Pages: Settings → Pages → Source: main / root.
+  -->
+</body>
+</html>
