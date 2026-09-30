@@ -1,0 +1,61 @@
+INVISIBLE BUTTON LAYOUT
+Exported: 2026-09-30T19:53:40.529Z
+Page: index.html
+Video frame size: 1280x720 px
+Coordinates: origin is the top-left corner of the video frame.
+  "px" values are in video pixels; "%" values are fractions of the frame
+  (use the % values to position buttons at any window size).
+
+Section1: LaunchScreen
+
+Button 1 (main button): "Disk"
+  shown over: Video1.mp4
+  px: x=131 y=610 width=230 height=65
+  %:  left=10.22% top=84.74% width=17.94% height=9.00%
+
+Button 2: "Videotape"
+  shown over: Video1.mp4
+  px: x=940 y=544 width=268 height=152
+  %:  left=73.43% top=75.60% width=20.90% height=21.08%
+
+Button 3: "Interview with the vampire poster"
+  shown over: Video1.mp4
+  px: x=46 y=8 width=363 height=562
+  %:  left=3.61% top=1.13% width=28.33% height=78.12%
+
+JSON (x, y, width, height are fractions 0-1 of the video frame):
+{
+  "frame": {
+    "width": 1280,
+    "height": 720
+  },
+  "buttons": [
+    {
+      "button": 1,
+      "name": "Disk",
+      "video": "Video1.mp4",
+      "x": 0.1022,
+      "y": 0.8474,
+      "width": 0.1794,
+      "height": 0.09
+    },
+    {
+      "button": 2,
+      "name": "Videotape",
+      "video": "Video1.mp4",
+      "x": 0.7343,
+      "y": 0.756,
+      "width": 0.209,
+      "height": 0.2108
+    },
+    {
+      "button": 3,
+      "name": "Interview with the vampire poster",
+      "video": "Video1.mp4",
+      "x": 0.0361,
+      "y": 0.0113,
+      "width": 0.2833,
+      "height": 0.7812
+    }
+  ]
+}
