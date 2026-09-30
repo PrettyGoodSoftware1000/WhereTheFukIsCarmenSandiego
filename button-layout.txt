@@ -6,7 +6,7 @@ Coordinates: origin is the top-left corner of the video frame.
   "px" values are in video pixels; "%" values are fractions of the frame
   (use the % values to position buttons at any window size).
 
-Section1: LaunchScreen
+Section1: LaunchScreen(Video1.mp4)
 
 Button 1 (main button): "Disk"
   shown over: Video1.mp4
