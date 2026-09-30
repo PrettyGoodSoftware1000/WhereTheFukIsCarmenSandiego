@@ -43,7 +43,30 @@
       visibility: hidden;
     }
 
-    /* ---------- Invisible buttons (hotspots) ---------- */
+    /* ---------- Live invisible buttons ---------- */
+
+    /* Clickable areas for the current section. Fully transparent. */
+    .live-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .live-btn {
+      position: absolute;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      appearance: none;
+      cursor: pointer;
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .live-btn:focus { outline: none; }
+    /* In dev mode only the editable squares respond to the mouse. */
+    body.dev .live-layer { display: none; }
+
+    /* ---------- Dev mode squares (hotspots) ---------- */
 
     /* Layer that holds the hotspot squares, on top of the videos. */
     .hotspot-layer {
@@ -150,6 +173,22 @@
       font: 12px/16px ui-monospace, monospace;
       text-align: center;
     }
+    .dev-section {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin: 10px 0 0;
+    }
+    .dev-section select,
+    .dev-section input {
+      font: inherit;
+      background: #222;
+      color: #f5f5f5;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 4px;
+      padding: 3px 6px;
+    }
+    .dev-section input { flex: 1; min-width: 0; }
     .dev-status {
       margin: 8px 0;
       padding: 6px 8px;
@@ -204,6 +243,8 @@
       controlslist="nodownload noplaybackrate nofullscreen noremoteplayback"
     ></video>
 
+    <div class="live-layer" id="liveLayer"></div>
+
     <div class="hotspot-layer" id="hotspotLayer"></div>
 
     <div class="dev-panel" id="devPanel" hidden>
@@ -215,6 +256,21 @@
            Drawing a number again replaces it. <kbd>×</kbd> deletes.</p>
         <p><kbd>Esc</kbd> cancel drawing · <kbd>H</kbd> hide this menu</p>
         <p>Hold <kbd>Enter</kbd> 2 s: close, hide squares, download .txt</p>
+        <div class="dev-section">
+          <label for="devSection">Section</label>
+          <select id="devSection">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+          </select>
+          <input id="devSectionName" type="text" placeholder="Section name" aria-label="Section name" />
+        </div>
         <div class="dev-status" id="devStatus"></div>
         <ul class="dev-list" id="devList"></ul>
       </div>
@@ -226,59 +282,219 @@
   <script>
     const vid1 = document.getElementById('vid1');
     const vid2 = document.getElementById('vid2');
-
-    // ----- Video 1 finished: show video 2's first frame and stay there -----
-    // (Nothing starts video 1 yet; the invisible buttons will do that later.)
-    vid1.addEventListener('ended', () => {
-      vid2.classList.remove('is-hidden');
-      vid1.classList.add('is-hidden');
-    });
+    const VIDEOS = { 'Video1.mp4': vid1, 'Video2.mp4': vid2 };
 
     // =====================================================================
-    // Dev mode: draw invisible buttons over the video and export them.
-    //   hold Enter for 2 seconds   open / close dev mode
-    //   1–9                        draw that button
-    // Positions are stored as fractions (0–1) of the video frame, so they
-    // line up no matter how big the window is.
+    // Sections: each section is a scene with its own set of invisible
+    // buttons. Only the current section's buttons are active.
     // =====================================================================
+
+    // The picture each section is shown over.
+    const SCENES = {
+      1: { video: 'Video1.mp4', frame: 'first' },
+      2: { video: 'Video2.mp4', frame: 'last' },
+    };
+
+    // Live buttons, from button-layout.txt. x, y, w, h are fractions (0–1)
+    // of the video frame, so they line up at any window size.
+    const LAYOUT = {
+      1: {
+        name: 'LaunchScreen',
+        buttons: {
+          1: { name: 'Disk', video: 'Video1.mp4',
+               x: 0.1022, y: 0.8474, w: 0.1794, h: 0.09 },
+          2: { name: 'Videotape', video: 'Video1.mp4',
+               x: 0.7343, y: 0.756, w: 0.209, h: 0.2108 },
+          3: { name: 'Interview with the vampire poster', video: 'Video1.mp4',
+               x: 0.0361, y: 0.0113, w: 0.2833, h: 0.7812 },
+        },
+      },
+      // 2: Section 2 buttons go here (shown over Video2.mp4's last frame).
+    };
+
+    // What each live button does: ACTIONS[section][button]().
+    const ACTIONS = {
+      1: {
+        1: playDiskVideo,               // Disk
+        2: () => batmanSounds.play(),   // Videotape
+        3: () => vampireSounds.play(),  // Interview with the vampire poster
+      },
+    };
+
     const layer = document.getElementById('hotspotLayer');
-    const panel = document.getElementById('devPanel');
-    const statusEl = document.getElementById('devStatus');
-    const listEl = document.getElementById('devList');
-    const badge = document.getElementById('devBadge');
-
-    const STORE_KEY = 'invisible-buttons-v1';
-    const MIN_SIZE = 6; // px; smaller drags are ignored as accidental clicks
-    const HOLD_MS = 2000; // how long Enter must be held to toggle dev mode
-
-    let hotspots = loadHotspots(); // { "1": { x, y, w, h, name, video }, ... }
-    const elements = {};            // number -> square element
+    const liveLayer = document.getElementById('liveLayer');
+    let currentSection = 1; // null while a video is playing between sections
     let devMode = false;
-    let drawNum = null;             // button number waiting to be drawn
-    let drag = null;                // in-progress drag
 
-    function loadHotspots() {
-      let data;
-      try {
-        data = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
-      } catch (_) {
-        data = {};
+    // ----- Sounds -----
+
+    let currentSound = null;
+    function stopSound() {
+      if (currentSound) {
+        currentSound.pause();
+        currentSound = null;
       }
-      // Buttons saved before the rename still point at "video1.mp4".
-      for (const num of Object.keys(data)) {
-        if (data[num].video === 'video1.mp4') data[num].video = 'Video1.mp4';
+    }
+
+    // Plays Prefix01.mp3, Prefix02.mp3, … one per click, and goes back to
+    // Prefix01.mp3 once the next numbered file doesn't exist.
+    function soundCycle(prefix) {
+      let next = 1;
+      const exists = {}; // file number -> true / false once checked
+      const url = (n) => prefix + String(n).padStart(2, '0') + '.mp3';
+
+      function check(n) {
+        if (n in exists) return;
+        fetch(url(n), { method: 'HEAD', cache: 'no-store' })
+          .then((r) => { exists[n] = r.ok; })
+          .catch(() => {}); // unknown (e.g. opened from disk): just try it
       }
-      return data;
+      check(1);
+      check(2);
+
+      function play() {
+        if (exists[next] === false) next = 1;
+        const n = next;
+        stopSound();
+        const audio = new Audio(url(n));
+        currentSound = audio;
+        // The file wasn't there after all: start over at 01.
+        audio.addEventListener('error', () => {
+          exists[n] = false;
+          if (n !== 1 && currentSound === audio) {
+            next = 1;
+            play();
+          }
+        });
+        audio.play().catch(() => {});
+        next = n + 1;
+        check(next);
+      }
+      return { play };
     }
-    function saveHotspots() {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(hotspots)); } catch (_) {}
-    }
+
+    const batmanSounds = soundCycle('Batman');
+    const vampireSounds = soundCycle('Vampire');
+
+    // ----- Scenes and live buttons -----
 
     function visibleVideo() {
       return vid2.classList.contains('is-hidden') ? vid1 : vid2;
     }
     function videoFileName(v) {
       return v.getAttribute('src').split('#')[0];
+    }
+
+    // Show a section's picture (first or last frame of its video), paused.
+    function showScene(section) {
+      const scene = SCENES[section];
+      if (!scene) return;
+      const v = VIDEOS[scene.video];
+      for (const other of Object.values(VIDEOS)) {
+        other.pause();
+        if (other !== v) other.classList.add('is-hidden');
+      }
+      v.classList.remove('is-hidden');
+      const seek = () => {
+        try {
+          v.currentTime = scene.frame === 'last' ? Math.max(0, v.duration - 0.001) : 0;
+        } catch (_) {}
+      };
+      if (v.readyState >= 1) seek();
+      else v.addEventListener('loadedmetadata', seek, { once: true });
+    }
+
+    function renderLive() {
+      liveLayer.innerHTML = '';
+      const section = currentSection;
+      const sec = LAYOUT[section];
+      if (!sec) return;
+      const f = frameRect();
+      for (const [num, b] of Object.entries(sec.buttons)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'live-btn';
+        btn.setAttribute('aria-label', b.name);
+        placeElement(btn, b, f);
+        btn.addEventListener('click', () => {
+          if (devMode || currentSection !== section) return;
+          const action = ACTIONS[section] && ACTIONS[section][num];
+          if (action) action();
+        });
+        liveLayer.appendChild(btn);
+      }
+    }
+
+    function setSection(section) {
+      currentSection = section;
+      renderLive();
+    }
+
+    // Disk: play Video2.mp4 and freeze on its last frame, then Section 2.
+    function playDiskVideo() {
+      setSection(null); // Section 1 buttons stop working
+      stopSound();
+      vid1.pause();
+      vid1.classList.add('is-hidden');
+      vid2.classList.remove('is-hidden');
+      try { vid2.currentTime = 0; } catch (_) {}
+      vid2.play().catch((err) => {
+        console.warn('Video play() was blocked:', err);
+        showScene(1);
+        setSection(1);
+      });
+    }
+
+    // A finished video stays on its last frame.
+    vid2.addEventListener('ended', () => {
+      if (currentSection === null && !devMode) setSection(2);
+    });
+
+    // =====================================================================
+    // Dev mode: draw invisible buttons over the video and export them.
+    //   hold Enter for 2 seconds   open / close dev mode
+    //   Section dropdown           which section you're placing buttons in
+    //   1–9                        draw that button
+    // Positions are stored as fractions (0–1) of the video frame, so they
+    // line up no matter how big the window is.
+    // =====================================================================
+    const panel = document.getElementById('devPanel');
+    const statusEl = document.getElementById('devStatus');
+    const listEl = document.getElementById('devList');
+    const badge = document.getElementById('devBadge');
+    const sectionSelect = document.getElementById('devSection');
+    const sectionNameInput = document.getElementById('devSectionName');
+
+    const STORE_KEY = 'invisible-buttons-v2';
+    const MIN_SIZE = 6; // px; smaller drags are ignored as accidental clicks
+    const HOLD_MS = 2000; // how long Enter must be held to toggle dev mode
+
+    // { "1": { name, buttons: { "1": { x, y, w, h, name, video }, … } }, … "9" }
+    let devData = loadDevData();
+    let devSection = '1';
+    let hotspots = devData[devSection].buttons; // buttons of devSection
+    const elements = {};                        // number -> square element
+    let drawNum = null;                         // button number waiting to be drawn
+    let drag = null;                            // in-progress drag
+
+    // Saved drawings, with any section not drawn yet filled in from LAYOUT.
+    function loadDevData() {
+      let data = null;
+      try {
+        data = JSON.parse(localStorage.getItem(STORE_KEY));
+      } catch (_) {}
+      if (!data || typeof data !== 'object') data = {};
+      for (let s = 1; s <= 9; s++) {
+        if (!data[s]) {
+          data[s] = LAYOUT[s]
+            ? JSON.parse(JSON.stringify(LAYOUT[s]))
+            : { name: '', buttons: {} };
+        }
+      }
+      return data;
+    }
+    function saveHotspots() {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(devData)); } catch (_) {}
     }
 
     // Where the video picture actually sits inside the stage (object-fit: contain
@@ -338,7 +554,7 @@
       const input = document.createElement('input');
       input.className = 'hotspot-name';
       input.type = 'text';
-      input.placeholder = num === '1' ? 'Button 1 name' : 'Button ' + num + ' name';
+      input.placeholder = 'Button ' + num + ' name';
       input.addEventListener('input', () => {
         if (hotspots[num]) {
           hotspots[num].name = input.value;
@@ -368,15 +584,31 @@
       }
     }
 
+    // Switch which section's squares are shown and edited.
+    function switchDevSection(section) {
+      stopDrawing();
+      for (const num of Object.keys(elements)) {
+        elements[num].remove();
+        delete elements[num];
+      }
+      devSection = section;
+      hotspots = devData[section].buttons;
+      sectionSelect.value = section;
+      sectionNameInput.value = devData[section].name || '';
+      showScene(section);
+      renderAll();
+      updatePanel();
+    }
+
     function updatePanel() {
       statusEl.textContent = drawNum
-        ? 'Drawing Button ' + drawNum + ': drag on the video.'
+        ? 'Drawing Button ' + drawNum + ' in Section ' + devSection + ': drag on the video.'
         : 'Press 1–9 to draw a button.';
       listEl.innerHTML = '';
       const nums = Object.keys(hotspots).sort();
       if (!nums.length) {
         const li = document.createElement('li');
-        li.textContent = 'No buttons yet.';
+        li.textContent = 'No buttons in Section ' + devSection + ' yet.';
         listEl.appendChild(li);
       }
       for (const num of nums) {
@@ -397,6 +629,22 @@
       document.body.classList.remove('drawing');
       updatePanel();
     }
+
+    sectionSelect.addEventListener('change', () => {
+      switchDevSection(sectionSelect.value);
+      // Hand the keyboard back so 1–9 draw buttons instead of changing sections.
+      sectionSelect.blur();
+    });
+    sectionNameInput.addEventListener('input', () => {
+      devData[devSection].name = sectionNameInput.value;
+      saveHotspots();
+    });
+    sectionNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        sectionNameInput.blur();
+      }
+    });
 
     layer.addEventListener('pointerdown', (e) => {
       if (!devMode || !drawNum) return;
@@ -455,11 +703,12 @@
 
     function openDevMode() {
       devMode = true;
+      stopSound();
       document.body.classList.add('dev');
       panel.hidden = false;
       badge.hidden = false;
-      renderAll();
-      updatePanel();
+      // Start on the section you're in (Section 2 if Video2 is mid-play).
+      switchDevSection(String(currentSection || 2));
     }
 
     function closeDevMode() {
@@ -472,14 +721,23 @@
       panel.hidden = true;
       badge.hidden = true;
       saveHotspots();
-      if (Object.keys(hotspots).length) downloadLayout();
+      // Go back to the live scene. If dev mode interrupted Video2, finish it.
+      if (currentSection === null) currentSection = 2;
+      showScene(currentSection);
+      renderLive();
+      downloadLayout();
     }
 
     function pct(n) { return (n * 100).toFixed(2) + '%'; }
 
+    function sceneLabel(section) {
+      const scene = SCENES[section];
+      return scene ? scene.video + ' (' + scene.frame + ' frame)' : '(not set yet)';
+    }
+
     function buildLayoutText() {
       const f = frameRect();
-      const nums = Object.keys(hotspots).sort();
+      const r = (n) => Math.round(n * 10000) / 10000;
       const lines = [
         'INVISIBLE BUTTON LAYOUT',
         'Exported: ' + new Date().toISOString(),
@@ -488,31 +746,50 @@
         'Coordinates: origin is the top-left corner of the video frame.',
         '  "px" values are in video pixels; "%" values are fractions of the frame',
         '  (use the % values to position buttons at any window size).',
+        'Sections: buttons listed under a section are only active in that section.',
         '',
       ];
-      for (const num of nums) {
-        const h = hotspots[num];
+      const json = [];
+      for (let s = 1; s <= 9; s++) {
+        const sec = devData[s];
+        const nums = Object.keys(sec.buttons).sort();
         lines.push(
-          'Button ' + num + (num === '1' ? ' (main button)' : '') + ': "' + (h.name || '') + '"',
-          '  shown over: ' + h.video,
-          '  px: x=' + Math.round(h.x * f.vw) + ' y=' + Math.round(h.y * f.vh) +
-            ' width=' + Math.round(h.w * f.vw) + ' height=' + Math.round(h.h * f.vh),
-          '  %:  left=' + pct(h.x) + ' top=' + pct(h.y) +
-            ' width=' + pct(h.w) + ' height=' + pct(h.h),
-          ''
+          '==================================================',
+          'Section ' + s + ': ' + (sec.name || '(unnamed)'),
+          '  scene: ' + sceneLabel(s),
+          '--------------------------------------------------'
         );
+        if (!nums.length) lines.push('  (no buttons yet)');
+        lines.push('');
+        for (const num of nums) {
+          const h = sec.buttons[num];
+          lines.push(
+            'Button ' + num + (num === '1' ? ' (main button)' : '') + ': "' + (h.name || '') + '"',
+            '  shown over: ' + h.video,
+            '  px: x=' + Math.round(h.x * f.vw) + ' y=' + Math.round(h.y * f.vh) +
+              ' width=' + Math.round(h.w * f.vw) + ' height=' + Math.round(h.h * f.vh),
+            '  %:  left=' + pct(h.x) + ' top=' + pct(h.y) +
+              ' width=' + pct(h.w) + ' height=' + pct(h.h),
+            ''
+          );
+        }
+        json.push({
+          section: s,
+          name: sec.name || '',
+          scene: SCENES[s] || null,
+          buttons: nums.map((num) => {
+            const h = sec.buttons[num];
+            return {
+              button: Number(num), name: h.name || '', video: h.video,
+              x: r(h.x), y: r(h.y), width: r(h.w), height: r(h.h),
+            };
+          }),
+        });
       }
-      const data = nums.map((num) => {
-        const h = hotspots[num];
-        const r = (n) => Math.round(n * 10000) / 10000;
-        return {
-          button: Number(num), name: h.name || '', video: h.video,
-          x: r(h.x), y: r(h.y), width: r(h.w), height: r(h.h),
-        };
-      });
       lines.push(
+        '==================================================',
         'JSON (x, y, width, height are fractions 0-1 of the video frame):',
-        JSON.stringify({ frame: { width: f.vw, height: f.vh }, buttons: data }, null, 2),
+        JSON.stringify({ frame: { width: f.vw, height: f.vh }, sections: json }, null, 2),
         ''
       );
       return lines.join('\n');
@@ -554,7 +831,8 @@
         return;
       }
       if (!devMode) return;
-      if (e.target instanceof HTMLInputElement) return; // typing a name
+      // Typing a name, or using the section dropdown's own keys.
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       if (/^[1-9]$/.test(e.key)) {
@@ -573,17 +851,23 @@
     // Switching apps/tabs mid-hold means we may never see the keyup.
     window.addEventListener('blur', cancelHold);
 
-    window.addEventListener('resize', renderAll);
-    vid1.addEventListener('loadedmetadata', renderAll);
-    vid2.addEventListener('loadedmetadata', renderAll);
-    vid1.addEventListener('ended', renderAll);
-    renderAll();
+    function renderEverything() {
+      renderAll();
+      renderLive();
+    }
+    window.addEventListener('resize', renderEverything);
+    vid1.addEventListener('loadedmetadata', renderEverything);
+    vid2.addEventListener('loadedmetadata', renderEverything);
+    renderEverything();
   </script>
 
   <!--
     Files expected next to this index.html in the repo:
-      • Video1.mp4   (shown on load)
-      • Video2.mp4   (its first frame is shown after Video1 ends)
+      • Video1.mp4          (Section 1 / LaunchScreen: its first frame)
+      • Video2.mp4          (plays after Disk; Section 2 is its last frame)
+      • Batman01.mp3, Batman02.mp3, …   (Videotape, one per click)
+      • Vampire01.mp3, Vampire02.mp3, … (Vampire poster, one per click)
+      • button-layout.txt   (exported from dev mode)
     File names are case-sensitive on GitHub Pages.
     GitHub Pages: Settings → Pages → Source: main / root.
   -->
